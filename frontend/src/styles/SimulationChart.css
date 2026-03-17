@@ -1,0 +1,47 @@
+.chart-container {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0.9rem;
+  box-shadow: var(--shadow-1);
+}
+
+.chart-container h3 {
+  margin-bottom: 0.6rem;
+  font-size: 0.94rem;
+}
+
+.recharts-text,
+.recharts-cartesian-axis-tick-value {
+  fill: #61716f;
+  font-size: 11px;
+}
+
+.recharts-cartesian-grid line {
+  stroke: #e7eeeb;
+}
+
+.recharts-default-tooltip {
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-1);
+}
+
+.recharts-pie-sector path {
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.recharts-pie-sector:hover path {
+  filter: brightness(1.08);
+}
+
+[data-theme="dark"] .recharts-text,
+[data-theme="dark"] .recharts-cartesian-axis-tick-value {
+  fill: #a8beb8;
+}
+
+[data-theme="dark"] .recharts-cartesian-grid line {
+  stroke: #30423f;
+}
