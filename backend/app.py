@@ -18,7 +18,11 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///sustainability.db')
+database_url = os.getenv('DATABASE_URL', 'sqlite:///sustainability.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
@@ -26,7 +30,13 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app)
+
+cors_origins = os.getenv('CORS_ORIGINS', '*')
+if cors_origins == '*':
+    CORS(app)
+else:
+    origin_list = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+    CORS(app, resources={r"/api/*": {"origins": origin_list}})
 
 # ==================== Database Models ====================
 
@@ -622,7 +632,11 @@ def make_shell_context():
     return {'db': db, 'User': User, 'Simulation': Simulation}
 
 
+with app.app_context():
+    db.create_all()
+
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.getenv('PORT', 5000))
+    debug_mode = os.getenv('FLASK_ENV', 'production') == 'development'
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
