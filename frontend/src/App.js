@@ -31,10 +31,23 @@ const PublicRoute = ({ children }) => {
   return isAuthenticated ? <Navigate to="/home" replace /> : children;
 };
 
+// Root Route Component
+const RootRoute = () => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading-container">Loading...</div>;
+  }
+
+  return isAuthenticated ? <Navigate to="/home" replace /> : <Home />;
+};
+
 // Navigation Component
 const Navigation = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, loading, logout } = useAuth();
   const [theme, setTheme] = useState('light');
+  const hasStoredToken = !!localStorage.getItem('access_token');
+  const showAuthenticatedNav = isAuthenticated || (loading && hasStoredToken);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -57,12 +70,9 @@ const Navigation = () => {
         <Link to="/">Sustainability Simulator</Link>
       </div>
       <div className="navbar-menu">
-        {isAuthenticated ? (
+        {showAuthenticatedNav ? (
           <>
             <span className="navbar-user">Welcome, {user?.username}</span>
-            <NavLink to="/home" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-              Home
-            </NavLink>
             <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Dashboard
             </NavLink>
@@ -109,7 +119,7 @@ function App() {
         <Navigation />
         <main className="app-main">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<RootRoute />} />
             <Route
               path="/home"
               element={
