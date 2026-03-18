@@ -46,4 +46,22 @@ export const simulationAPI = {
   getRecommendations: (id) => api.get(`/recommendations/${id}`),
 };
 
+// Feature Showcase API
+export const featureAPI = {
+  compare: (simId1, simId2) => api.get(`/simulations/${simId1}/compare/${simId2}`),
+  history: (simId) => api.get(`/simulations/${simId}/history`),
+  recommendationsRanked: (simId) => api.get(`/simulations/${simId}/recommendations-ranked`),
+  search: (params) => api.get('/simulations/search', { params }),
+  exportCsv: (simId) => api.get(`/simulations/${simId}/export?format=csv`, { responseType: 'blob' }),
+  listGoals: () => api.get('/goals'),
+  createGoal: (payload) => api.post('/goals', payload),
+  updateGoal: (goalId, payload) => api.patch(`/goals/${goalId}`, payload),
+  deleteGoal: (goalId) => api.delete(`/goals/${goalId}`),
+  badges: () => api.get('/user/badges'),
+  generateShareLink: (simId) => api.post(`/simulations/${simId}/generate-share-link`),
+  viewShared: (token) => api.get(`/share/${token}`),
+  disableSharing: (simId) => api.post(`/simulations/${simId}/disable-sharing`),
+};
+
+export { API_URL };
 export default api;

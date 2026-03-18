@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
+import { FeatureShowcase } from './pages/FeatureShowcase';
 import './styles/App.css';
 
 // Protected Route Component
@@ -49,6 +50,9 @@ const Navigation = () => {
             <span className="navbar-user">Welcome, {user?.username}</span>
             <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Dashboard
+            </NavLink>
+            <NavLink to="/showcase" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Showcase
             </NavLink>
             <button className="btn btn-small" onClick={logout}>
               Logout
@@ -98,6 +102,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/showcase"
+              element={
+                <ProtectedRoute>
+                  <FeatureShowcase />
                 </ProtectedRoute>
               }
             />
