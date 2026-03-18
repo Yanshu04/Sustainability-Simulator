@@ -14,7 +14,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 import json
-from io import BytesIO
+from io import StringIO
 import csv
 
 load_dotenv()
@@ -783,7 +783,7 @@ def export_simulation(sim_id):
         export_format = request.args.get('format', 'csv').lower()
         
         if export_format == 'csv':
-            output = BytesIO()
+            output = StringIO()
             writer = csv.DictWriter(output, fieldnames=[
                 'Metric', 'Current', 'Improved', 'Savings'
             ])
@@ -809,7 +809,7 @@ def export_simulation(sim_id):
             })
             
             output.seek(0)
-            return output.getvalue().decode(), 200, {
+            return output.getvalue(), 200, {
                 'Content-Disposition': f'attachment; filename="simulation_{sim_id}.csv"',
                 'Content-Type': 'text/csv'
             }
