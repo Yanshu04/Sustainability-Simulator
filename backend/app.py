@@ -9,6 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime
+from sqlalchemy import inspect, text
 import os
 from dotenv import load_dotenv
 import uuid
@@ -682,6 +683,50 @@ def generate_recommendations(simulation):
     }
 
 
+def run_startup_migrations():
+    """Apply lightweight schema updates for existing databases."""
+    engine = db.engine
+    inspector = inspect(engine)
+    dialect = engine.dialect.name
+
+    def column_exists(table_name, column_name):
+        if not inspector.has_table(table_name):
+            return False
+        columns = inspector.get_columns(table_name)
+        return any(col['name'] == column_name for col in columns)
+
+    # Keep legacy user tables compatible with new badge features.
+    if inspector.has_table('user'):
+        if not column_exists('user', 'badges'):
+            if dialect == 'postgresql':
+                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN badges JSON"))
+                db.session.execute(text("UPDATE \"user\" SET badges = '[]'::json WHERE badges IS NULL"))
+            else:
+                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN badges TEXT"))
+                db.session.execute(text("UPDATE \"user\" SET badges = '[]' WHERE badges IS NULL"))
+
+        if not column_exists('user', 'total_co2_reduced'):
+            if dialect == 'postgresql':
+                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN total_co2_reduced DOUBLE PRECISION DEFAULT 0"))
+            else:
+                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN total_co2_reduced REAL DEFAULT 0"))
+            db.session.execute(text("UPDATE \"user\" SET total_co2_reduced = 0 WHERE total_co2_reduced IS NULL"))
+
+    # Keep legacy simulation tables compatible with sharing features.
+    if inspector.has_table('simulation'):
+        if not column_exists('simulation', 'share_token'):
+            db.session.execute(text("ALTER TABLE simulation ADD COLUMN share_token VARCHAR(36)"))
+
+        if not column_exists('simulation', 'is_shareable'):
+            if dialect == 'postgresql':
+                db.session.execute(text("ALTER TABLE simulation ADD COLUMN is_shareable BOOLEAN DEFAULT FALSE"))
+            else:
+                db.session.execute(text("ALTER TABLE simulation ADD COLUMN is_shareable BOOLEAN DEFAULT 0"))
+            db.session.execute(text("UPDATE simulation SET is_shareable = FALSE WHERE is_shareable IS NULL"))
+
+    db.session.commit()
+
+
 # ==================== Feature 1: Compare Simulations ====================
 @app.route('/api/simulations/<int:sim_id1>/compare/<int:sim_id2>', methods=['GET'])
 @jwt_required()
@@ -1208,6 +1253,7 @@ def make_shell_context():
 
 with app.app_context():
     db.create_all()
+    run_startup_migrations()
 
 
 if __name__ == '__main__':
