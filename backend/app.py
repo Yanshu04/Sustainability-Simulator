@@ -8,9 +8,13 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import timedelta
+from datetime import timedelta, datetime
 import os
 from dotenv import load_dotenv
+import uuid
+import json
+from io import BytesIO
+import csv
 
 load_dotenv()
 
@@ -51,7 +55,12 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     
+    # Badges & Achievements
+    badges = db.Column(db.JSON, default=list)  # List of earned badges
+    total_co2_reduced = db.Column(db.Float, default=0)  # Total CO2 reduction (kg)
+    
     simulations = db.relationship('Simulation', backref='user', lazy=True, cascade='all, delete-orphan')
+    goals = db.relationship('Goal', backref='user', lazy=True, cascade='all, delete-orphan')
     
     def set_password(self, password):
         self.password = generate_password_hash(password)
@@ -111,6 +120,10 @@ class Simulation(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
     
+    # Sharing & Social
+    share_token = db.Column(db.String(36), unique=True, nullable=True)
+    is_shareable = db.Column(db.Boolean, default=False)
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -147,6 +160,41 @@ class Simulation(db.Model):
                 'current_cost_annual': self.current_cost_annual,
                 'improved_cost_annual': self.improved_cost_annual,
             },
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Goal(db.Model):
+    """Model to store user sustainability goals"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.String(500))
+    
+    # Goal tracking
+    target_reduction_percent = db.Column(db.Float, nullable=False)  # e.g., 30 for 30%
+    target_deadline = db.Column(db.DateTime, nullable=False)
+    category = db.Column(db.String(50), default='overall')  # overall, transport, diet, energy, water
+    
+    # Status
+    current_reduction_percent = db.Column(db.Float, default=0)
+    is_completed = db.Column(db.Boolean, default=False)
+    
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'target_reduction_percent': self.target_reduction_percent,
+            'target_deadline': self.target_deadline.isoformat() if self.target_deadline else None,
+            'category': self.category,
+            'current_reduction_percent': self.current_reduction_percent,
+            'progress_percent': min(100, (self.current_reduction_percent / self.target_reduction_percent * 100) if self.target_reduction_percent > 0 else 0),
+            'is_completed': self.is_completed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -491,6 +539,11 @@ def update_simulation(sim_id):
             simulation.improved_monthly_water_liters
         )
         
+        # Track user's total CO2 reduced and check for badges
+        user = User.query.get(user_id)
+        user.total_co2_reduced += simulation.annual_savings
+        check_and_award_badges(user)
+        
         db.session.commit()
         
         return jsonify(simulation.to_dict()), 200
@@ -627,6 +680,510 @@ def generate_recommendations(simulation):
         'recommendations': recommendations,
         'total_potential_savings': sum([r.get('priority') == 'high' for r in recommendations])
     }
+
+
+# ==================== Feature 1: Compare Simulations ====================
+@app.route('/api/simulations/<int:sim_id1>/compare/<int:sim_id2>', methods=['GET'])
+@jwt_required()
+def compare_simulations(sim_id1, sim_id2):
+    """Compare two simulations side by side"""
+    try:
+        user_id = get_jwt_identity()
+        sim1 = Simulation.query.filter_by(id=sim_id1, user_id=user_id).first()
+        sim2 = Simulation.query.filter_by(id=sim_id2, user_id=user_id).first()
+        
+        if not sim1 or not sim2:
+            return jsonify({'error': 'One or both simulations not found'}), 404
+        
+        reduction = sim1.current_annual_emissions - sim2.current_annual_emissions
+        reduction_percent = (reduction / sim1.current_annual_emissions * 100) if sim1.current_annual_emissions > 0 else 0
+        
+        return jsonify({
+            'simulation_1': {
+                'id': sim1.id,
+                'name': sim1.name,
+                'annual_emissions': sim1.current_annual_emissions,
+                'annual_cost': sim1.current_cost_annual,
+            },
+            'simulation_2': {
+                'id': sim2.id,
+                'name': sim2.name,
+                'annual_emissions': sim2.current_annual_emissions,
+                'annual_cost': sim2.current_cost_annual,
+            },
+            'comparison': {
+                'emission_reduction_kg': round(reduction, 2),
+                'reduction_percent': round(reduction_percent, 2),
+                'cost_reduction': round((sim1.current_cost_annual - sim2.current_cost_annual), 2),
+                'better_scenario': 'simulation_2' if reduction > 0 else 'simulation_1'
+            }
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 2: Export Reports (PDF/CSV) ====================
+@app.route('/api/simulations/<int:sim_id>/export', methods=['GET'])
+@jwt_required()
+def export_simulation(sim_id):
+    """Export simulation data as CSV or PDF"""
+    try:
+        user_id = get_jwt_identity()
+        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        export_format = request.args.get('format', 'csv').lower()
+        
+        if export_format == 'csv':
+            output = BytesIO()
+            writer = csv.DictWriter(output, fieldnames=[
+                'Metric', 'Current', 'Improved', 'Savings'
+            ])
+            writer.writeheader()
+            
+            writer.writerow({
+                'Metric': 'Annual CO2 Emissions (kg)',
+                'Current': round(simulation.current_annual_emissions, 2),
+                'Improved': round(simulation.improved_annual_emissions, 2),
+                'Savings': round(simulation.annual_savings, 2)
+            })
+            writer.writerow({
+                'Metric': 'Annual Cost (INR)',
+                'Current': round(simulation.current_cost_annual, 2),
+                'Improved': round(simulation.improved_cost_annual, 2),
+                'Savings': round(simulation.current_cost_annual - simulation.improved_cost_annual, 2)
+            })
+            writer.writerow({
+                'Metric': 'Annual Water Usage (L)',
+                'Current': round(simulation.current_water_annual, 2),
+                'Improved': round(simulation.improved_water_annual, 2),
+                'Savings': round(simulation.current_water_annual - simulation.improved_water_annual, 2)
+            })
+            
+            output.seek(0)
+            return output.getvalue().decode(), 200, {
+                'Content-Disposition': f'attachment; filename="simulation_{sim_id}.csv"',
+                'Content-Type': 'text/csv'
+            }
+        else:
+            return jsonify({'error': 'PDF export requires reportlab. CSV available.'}), 400
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 3: Simulation History ====================
+@app.route('/api/simulations/<int:sim_id>/history', methods=['GET'])
+@jwt_required()
+def get_simulation_history(sim_id):
+    """Get simulation creation and update history"""
+    try:
+        user_id = get_jwt_identity()
+        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        return jsonify({
+            'simulation_id': simulation.id,
+            'name': simulation.name,
+            'created_at': simulation.created_at.isoformat() if simulation.created_at else None,
+            'last_updated': simulation.updated_at.isoformat() if simulation.updated_at else None,
+            'version_info': {
+                'current_emissions': simulation.current_annual_emissions,
+                'improved_emissions': simulation.improved_annual_emissions,
+                'emission_reduction': simulation.annual_savings
+            }
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 4: Impact Badges & Milestones ====================
+def check_and_award_badges(user):
+    """Check for badge achievements based on user progress"""
+    if not isinstance(user.badges, list):
+        user.badges = []
+    
+    badges_to_award = []
+    
+    # CO2 Reduction Milestones
+    if user.total_co2_reduced >= 500 and 'Carbon Reducer' not in user.badges:
+        badges_to_award.append('Carbon Reducer')
+    if user.total_co2_reduced >= 1000 and 'Eco Warrior' not in user.badges:
+        badges_to_award.append('Eco Warrior')
+    if user.total_co2_reduced >= 2000 and 'Green Champion' not in user.badges:
+        badges_to_award.append('Green Champion')
+    
+    # Simulation milestones
+    sim_count = len(user.simulations)
+    if sim_count >= 5 and 'Dedicated Planner' not in user.badges:
+        badges_to_award.append('Dedicated Planner')
+    if sim_count >= 10 and 'Master Simulator' not in user.badges:
+        badges_to_award.append('Master Simulator')
+    
+    # Goal achievements
+    completed_goals = len([g for g in user.goals if g.is_completed])
+    if completed_goals >= 3 and 'Goal Achiever' not in user.badges:
+        badges_to_award.append('Goal Achiever')
+    
+    for badge in badges_to_award:
+        if badge not in user.badges:
+            user.badges.append(badge)
+    
+    return badges_to_award
+
+
+@app.route('/api/user/badges', methods=['GET'])
+@jwt_required()
+def get_user_badges():
+    """Get user badges and achievements"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        check_and_award_badges(user)
+        db.session.commit()
+        
+        badge_descriptions = {
+            'Carbon Reducer': 'Reduced 500+ kg of CO2 emissions',
+            'Eco Warrior': 'Reduced 1000+ kg of CO2 emissions',
+            'Green Champion': 'Reduced 2000+ kg of CO2 emissions',
+            'Dedicated Planner': 'Created 5+ simulations',
+            'Master Simulator': 'Created 10+ simulations',
+            'Goal Achiever': 'Completed 3+ sustainability goals'
+        }
+        
+        badges_data = []
+        for badge in user.badges:
+            badges_data.append({
+                'name': badge,
+                'description': badge_descriptions.get(badge, 'Achievement unlocked!'),
+                'earned_date': datetime.now().isoformat()
+            })
+        
+        return jsonify({
+            'badges': badges_data,
+            'total_co2_reduced': user.total_co2_reduced,
+            'total_badges': len(user.badges)
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 5: Enhanced Recommendations ====================
+@app.route('/api/simulations/<int:sim_id>/recommendations-ranked', methods=['GET'])
+@jwt_required()
+def get_recommendations_ranked(sim_id):
+    """Get recommendations ranked by impact vs effort"""
+    try:
+        user_id = get_jwt_identity()
+        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        recommendations = []
+        
+        # Transport recommendations
+        if simulation.daily_car_distance > 10:
+            potential_savings = (simulation.daily_car_distance * 0.192 * 365) / 1000
+            recommendations.append({
+                'category': 'Transport',
+                'suggestion': 'Switch to an electric car',
+                'impact_kg_co2': int(potential_savings),
+                'effort': 'High',  # effort scale
+                'impact_effort_ratio': potential_savings / 10,  # Higher is better
+                'priority': 'high' if potential_savings > 1000 else 'medium',
+                'details': 'Electric vehicles produce 75% fewer emissions than conventional cars.',
+                'timeline': '6-12 months'
+            })
+        
+        if simulation.diet_type == 'non-vegetarian':
+            diet_savings = ((5.0 - 2.0) * simulation.meals_per_day * 365) / 1000
+            recommendations.append({
+                'category': 'Diet',
+                'suggestion': 'Switch to vegetarian meals',
+                'impact_kg_co2': int(diet_savings),
+                'effort': 'Low',
+                'impact_effort_ratio': diet_savings / 3,
+                'priority': 'high' if diet_savings > 500 else 'medium',
+                'details': 'Vegetarian diet requires 60% less water and produces fewer emissions.',
+                'timeline': 'Immediate'
+            })
+        
+        if simulation.monthly_electricity_kwh > 400:
+            energy_savings = (simulation.monthly_electricity_kwh - 250) * 0.82 * 12 / 1000
+            recommendations.append({
+                'category': 'Energy',
+                'suggestion': 'Reduce electricity usage by 30%',
+                'impact_kg_co2': int(energy_savings),
+                'effort': 'Medium',
+                'impact_effort_ratio': energy_savings / 5,
+                'priority': 'medium',
+                'details': 'Use LED bulbs, optimize heating/cooling, unplug devices.',
+                'timeline': '1-2 months'
+            })
+        
+        # Sort by impact-to-effort ratio
+        recommendations.sort(key=lambda x: x['impact_effort_ratio'], reverse=True)
+        
+        return jsonify({
+            'total_recommendations': len(recommendations),
+            'recommendations': recommendations
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 6: Goal Setting & Tracking ====================
+@app.route('/api/goals', methods=['POST'])
+@jwt_required()
+def create_goal():
+    """Create a new sustainability goal"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        if not data.get('name') or not data.get('target_reduction_percent') or not data.get('target_deadline'):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        goal = Goal(
+            user_id=user_id,
+            name=data['name'],
+            description=data.get('description'),
+            target_reduction_percent=data['target_reduction_percent'],
+            target_deadline=datetime.fromisoformat(data['target_deadline']),
+            category=data.get('category', 'overall')
+        )
+        
+        db.session.add(goal)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Goal created successfully',
+            'goal': goal.to_dict()
+        }), 201
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/goals', methods=['GET'])
+@jwt_required()
+def get_goals():
+    """Get all goals for the user"""
+    try:
+        user_id = get_jwt_identity()
+        goals = Goal.query.filter_by(user_id=user_id).all()
+        
+        return jsonify({
+            'goals': [goal.to_dict() for goal in goals],
+            'total_goals': len(goals),
+            'completed_goals': len([g for g in goals if g.is_completed])
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/goals/<int:goal_id>', methods=['PATCH'])
+@jwt_required()
+def update_goal(goal_id):
+    """Update a goal's progress"""
+    try:
+        user_id = get_jwt_identity()
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        data = request.get_json()
+        if 'current_reduction_percent' in data:
+            goal.current_reduction_percent = data['current_reduction_percent']
+        if 'is_completed' in data:
+            goal.is_completed = data['is_completed']
+        if 'name' in data:
+            goal.name = data['name']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Goal updated successfully',
+            'goal': goal.to_dict()
+        }), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/goals/<int:goal_id>', methods=['DELETE'])
+@jwt_required()
+def delete_goal(goal_id):
+    """Delete a goal"""
+    try:
+        user_id = get_jwt_identity()
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        db.session.delete(goal)
+        db.session.commit()
+        
+        return jsonify({'message': 'Goal deleted successfully'}), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 7: Search & Filter Simulations ====================
+@app.route('/api/simulations/search', methods=['GET'])
+@jwt_required()
+def search_simulations():
+    """Search and filter simulations"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get query parameters
+        search_query = request.args.get('search', '').lower()
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        co2_min = request.args.get('co2_min', type=float)
+        co2_max = request.args.get('co2_max', type=float)
+        sort_by = request.args.get('sort', 'created_at')  # created_at, emissions, savings
+        
+        query = Simulation.query.filter_by(user_id=user_id)
+        
+        # Apply filters
+        if search_query:
+            query = query.filter(
+                db.or_(
+                    Simulation.name.ilike(f'%{search_query}%'),
+                    Simulation.description.ilike(f'%{search_query}%')
+                )
+            )
+        
+        if date_from:
+            date_from_obj = datetime.fromisoformat(date_from)
+            query = query.filter(Simulation.created_at >= date_from_obj)
+        
+        if date_to:
+            date_to_obj = datetime.fromisoformat(date_to)
+            query = query.filter(Simulation.created_at <= date_to_obj)
+        
+        if co2_min is not None:
+            query = query.filter(Simulation.current_annual_emissions >= co2_min)
+        
+        if co2_max is not None:
+            query = query.filter(Simulation.current_annual_emissions <= co2_max)
+        
+        # Apply sorting
+        if sort_by == 'emissions':
+            query = query.order_by(Simulation.current_annual_emissions.desc())
+        elif sort_by == 'savings':
+            query = query.order_by(Simulation.annual_savings.desc())
+        else:
+            query = query.order_by(Simulation.created_at.desc())
+        
+        simulations = query.all()
+        
+        return jsonify({
+            'total': len(simulations),
+            'simulations': [sim.to_dict() for sim in simulations]
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Feature 8: Sharing & Social ====================
+@app.route('/api/simulations/<int:sim_id>/generate-share-link', methods=['POST'])
+@jwt_required()
+def generate_share_link(sim_id):
+    """Generate a shareable link for a simulation"""
+    try:
+        user_id = get_jwt_identity()
+        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        if not simulation.share_token:
+            simulation.share_token = str(uuid.uuid4())
+        
+        simulation.is_shareable = True
+        db.session.commit()
+        
+        share_url = f"https://your-app-domain.com/share/{simulation.share_token}"
+        
+        return jsonify({
+            'message': 'Share link generated',
+            'share_token': simulation.share_token,
+            'share_url': share_url,
+            'is_shareable': True
+        }), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/share/<share_token>', methods=['GET'])
+def view_shared_simulation(share_token):
+    """View a publicly shared simulation (no authentication required)"""
+    try:
+        simulation = Simulation.query.filter_by(share_token=share_token, is_shareable=True).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Shared simulation not found or expired'}), 404
+        
+        user = User.query.get(simulation.user_id)
+        
+        return jsonify({
+            'simulation': simulation.to_dict(),
+            'shared_by': {
+                'username': user.username,
+                'created_date': user.created_at.isoformat() if user.created_at else None
+            },
+            'shared_at': datetime.now().isoformat()
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulations/<int:sim_id>/disable-sharing', methods=['POST'])
+@jwt_required()
+def disable_sharing(sim_id):
+    """Disable sharing for a simulation"""
+    try:
+        user_id = get_jwt_identity()
+        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
+        
+        if not simulation:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        simulation.is_shareable = False
+        db.session.commit()
+        
+        return jsonify({'message': 'Sharing disabled'}), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 # ==================== Error Handlers ====================
