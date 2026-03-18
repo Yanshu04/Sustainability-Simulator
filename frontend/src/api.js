@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const API_URL =
+  process.env.REACT_APP_API_URL ||
+  (isLocalhost
+    ? 'http://localhost:5000/api'
+    : 'https://sustainability-simulator-api.onrender.com/api');
 
 // Create axios instance with default config
 const api = axios.create({
