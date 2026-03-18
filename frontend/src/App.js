@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Home } from './pages/Home';
+import { ProjectHome } from './pages/ProjectHome';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
@@ -27,7 +28,7 @@ const PublicRoute = ({ children }) => {
     return <div className="loading-container">Loading...</div>;
   }
 
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
+  return isAuthenticated ? <Navigate to="/home" replace /> : children;
 };
 
 // Navigation Component
@@ -59,6 +60,9 @@ const Navigation = () => {
         {isAuthenticated ? (
           <>
             <span className="navbar-user">Welcome, {user?.username}</span>
+            <NavLink to="/home" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Home
+            </NavLink>
             <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Dashboard
             </NavLink>
@@ -106,6 +110,14 @@ function App() {
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <ProjectHome />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/login"
               element={

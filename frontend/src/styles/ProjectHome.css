@@ -1,0 +1,130 @@
+.project-home {
+  padding: 0.9rem clamp(1rem, 3.2vw, 2.4rem) 2.2rem;
+}
+
+.project-hero {
+  border-radius: 24px;
+  background:
+    linear-gradient(120deg, rgba(10, 60, 50, 0.96), rgba(14, 108, 87, 0.86)),
+    radial-gradient(circle at 88% 20%, rgba(255, 255, 255, 0.2), transparent 34%);
+  color: #eefdf7;
+  box-shadow: var(--shadow-2);
+}
+
+.project-hero-content {
+  max-width: 760px;
+  padding: clamp(1.6rem, 3.6vw, 2.8rem);
+}
+
+.project-hero-kicker {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d4fff1;
+}
+
+.project-hero h1 {
+  color: #ffffff;
+  margin-bottom: 0.55rem;
+}
+
+.project-hero p {
+  color: rgba(239, 255, 248, 0.92);
+}
+
+.project-home-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.project-section {
+  margin-top: 1.3rem;
+}
+
+.project-section h2 {
+  margin-bottom: 0.8rem;
+}
+
+.project-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.project-grid.three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.project-card,
+.step-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: var(--shadow-1);
+}
+
+.project-card h3,
+.step-card h3 {
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+}
+
+.project-card p,
+.step-card p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.steps-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.step-card span {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  margin-bottom: 0.55rem;
+  background: var(--brand-strong);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+@media (max-width: 1120px) {
+  .project-grid.three-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .steps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .project-home {
+    padding: 0.75rem 0.8rem 1.5rem;
+  }
+
+  .project-grid.three-col,
+  .project-grid.two-col,
+  .steps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-home-actions {
+    flex-direction: column;
+  }
+}
