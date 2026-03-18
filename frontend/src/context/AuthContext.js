@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../api';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { firebaseAuth, hasFirebaseConfig } from '../firebase';
 
 // Create Auth Context
 const AuthContext = createContext();
@@ -45,6 +52,12 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password) => {
     try {
       setLoading(true);
+
+      if (hasFirebaseConfig && firebaseAuth) {
+        const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        await updateProfile(credential.user, { displayName: username });
+      }
+
       const response = await authAPI.register(username, email, password);
       localStorage.setItem('access_token', response.data.access_token);
       setUser(response.data.user);
@@ -59,10 +72,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (username, password) => {
+  const login = async (identifier, password) => {
     try {
       setLoading(true);
-      const response = await authAPI.login(username, password);
+      const response = await authAPI.login(identifier, password);
+
+      if (hasFirebaseConfig && firebaseAuth) {
+        const email = response.data?.user?.email;
+        if (email) {
+          await signInWithEmailAndPassword(firebaseAuth, email, password);
+        }
+      }
+
       localStorage.setItem('access_token', response.data.access_token);
       setUser(response.data.user);
       setError(null);
@@ -76,7 +97,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (hasFirebaseConfig && firebaseAuth) {
+      try {
+        await signOut(firebaseAuth);
+      } catch (_) {
+        // Ignore firebase signout errors and still clear local session.
+      }
+    }
+
     localStorage.removeItem('access_token');
     setUser(null);
     setError(null);

@@ -288,13 +288,18 @@ def login():
     """User login"""
     try:
         data = request.get_json()
+
+        identifier = data.get('username') or data.get('email')
+        password = data.get('password')
+
+        if not identifier or not password:
+            return jsonify({'error': 'Missing username/email or password'}), 400
+
+        user = User.query.filter(
+            (User.username == identifier) | (User.email == identifier)
+        ).first()
         
-        if not data.get('username') or not data.get('password'):
-            return jsonify({'error': 'Missing username or password'}), 400
-        
-        user = User.query.filter_by(username=data['username']).first()
-        
-        if not user or not user.check_password(data['password']):
+        if not user or not user.check_password(password):
             return jsonify({'error': 'Invalid username or password'}), 401
         
         access_token = create_access_token(identity=user.id)

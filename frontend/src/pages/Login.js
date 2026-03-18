@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import '../styles/Auth.css';
 
 export const Login = () => {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export const Login = () => {
     try {
       setLoading(true);
       setError(null);
-      await login(username, password);
+      await login(identifier, password);
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
@@ -35,12 +35,12 @@ export const Login = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Username</label>
+            <label>Username or Email</label>
             <input
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Enter your username or email"
               required
             />
           </div>
