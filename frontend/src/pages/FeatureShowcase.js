@@ -12,7 +12,6 @@ export const FeatureShowcase = () => {
   const [goalName, setGoalName] = useState('Reduce CO2 by 25%');
   const [goalDeadline, setGoalDeadline] = useState('2026-12-31T00:00:00');
   const [goalId, setGoalId] = useState('');
-  const [shareToken, setShareToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [result, setResult] = useState(null);
@@ -243,50 +242,8 @@ export const FeatureShowcase = () => {
         </article>
 
         <article className="showcase-card">
-          <h3>Badges & Sharing</h3>
-          <label>Share token</label>
-          <input
-            value={shareToken}
-            onChange={(e) => setShareToken(e.target.value)}
-            placeholder="Token from Generate Share Link"
-          />
-          <div className="button-row">
-            <button
-              className="btn btn-primary"
-              disabled={loading}
-              onClick={() => runAction('Load badges', async () => (await featureAPI.badges()).data)}
-            >
-              Get Badges
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading || !simIdA}
-              onClick={() =>
-                runAction('Generate share link', async () => {
-                  const response = await featureAPI.generateShareLink(simIdA);
-                  const token = response.data?.share_token;
-                  if (token) setShareToken(token);
-                  return response.data;
-                })
-              }
-            >
-              Generate Share Link
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading || !shareToken}
-              onClick={() => runAction('View shared simulation', async () => (await featureAPI.viewShared(shareToken)).data)}
-            >
-              View Shared
-            </button>
-            <button
-              className="btn btn-danger"
-              disabled={loading || !simIdA}
-              onClick={() => runAction('Disable sharing', async () => (await featureAPI.disableSharing(simIdA)).data)}
-            >
-              Disable Sharing
-            </button>
-          </div>
+          <h3>Removed Features</h3>
+          <p className="muted">Legacy social and gamification modules are not part of the current build.</p>
         </article>
       </div>
 

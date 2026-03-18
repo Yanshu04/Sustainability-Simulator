@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Home } from './pages/Home';
 import { ProjectHome } from './pages/ProjectHome';
@@ -45,9 +45,11 @@ const RootRoute = () => {
 // Navigation Component
 const Navigation = () => {
   const { user, isAuthenticated, loading, logout } = useAuth();
+  const location = useLocation();
   const [theme, setTheme] = useState('light');
   const hasStoredToken = !!localStorage.getItem('access_token');
   const showAuthenticatedNav = isAuthenticated || (loading && hasStoredToken);
+  const isAuthenticatedHome = location.pathname === '/home';
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -73,12 +75,21 @@ const Navigation = () => {
         {showAuthenticatedNav ? (
           <>
             <span className="navbar-user">Welcome, {user?.username}</span>
-            <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/showcase" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-              Showcase
-            </NavLink>
+            {!isAuthenticatedHome && (
+              <NavLink to="/home" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+                Home
+              </NavLink>
+            )}
+            {!isAuthenticatedHome && (
+              <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+                Dashboard
+              </NavLink>
+            )}
+            {!isAuthenticatedHome && (
+              <NavLink to="/showcase" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+                Showcase
+              </NavLink>
+            )}
             <button className="btn btn-small" onClick={logout}>
               Logout
             </button>

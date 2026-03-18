@@ -47,12 +47,12 @@ export const ProjectHome = () => {
             <p>Set reduction goals, update progress, and monitor your sustainability journey over time.</p>
           </article>
           <article className="project-card">
-            <h3>Badges and Motivation</h3>
-            <p>Unlock achievements as your positive environmental impact increases.</p>
+            <h3>Progress Tracking</h3>
+            <p>Track improvements over time with simulation history and measurable savings.</p>
           </article>
           <article className="project-card">
-            <h3>Sharing and Export</h3>
-            <p>Share public simulation links and export reports in CSV format for external analysis.</p>
+            <h3>Export and Analysis</h3>
+            <p>Export reports in CSV format for external analysis and reporting.</p>
           </article>
         </div>
       </section>
@@ -92,7 +92,7 @@ export const ProjectHome = () => {
           </article>
           <article className="project-card">
             <h3>Feature Showcase Module</h3>
-            <p>Interactive panel to run advanced APIs including compare, history, goals, badges, search, and sharing.</p>
+            <p>Interactive panel to run advanced APIs including compare, history, goals, recommendations, and search.</p>
           </article>
         </div>
       </section>

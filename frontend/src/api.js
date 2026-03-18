@@ -57,10 +57,6 @@ export const featureAPI = {
   createGoal: (payload) => api.post('/goals', payload),
   updateGoal: (goalId, payload) => api.patch(`/goals/${goalId}`, payload),
   deleteGoal: (goalId) => api.delete(`/goals/${goalId}`),
-  badges: () => api.get('/user/badges'),
-  generateShareLink: (simId) => api.post(`/simulations/${simId}/generate-share-link`),
-  viewShared: (token) => api.get(`/share/${token}`),
-  disableSharing: (simId) => api.post(`/simulations/${simId}/disable-sharing`),
 };
 
 export { API_URL };

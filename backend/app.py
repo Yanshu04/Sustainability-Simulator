@@ -9,11 +9,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime
-from sqlalchemy import inspect, text
 import os
 from dotenv import load_dotenv
-import uuid
-import json
 from io import StringIO
 import csv
 
@@ -55,10 +52,6 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    
-    # Badges & Achievements
-    badges = db.Column(db.JSON, default=list)  # List of earned badges
-    total_co2_reduced = db.Column(db.Float, default=0)  # Total CO2 reduction (kg)
     
     simulations = db.relationship('Simulation', backref='user', lazy=True, cascade='all, delete-orphan')
     goals = db.relationship('Goal', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -120,10 +113,6 @@ class Simulation(db.Model):
     
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
-    
-    # Sharing & Social
-    share_token = db.Column(db.String(36), unique=True, nullable=True)
-    is_shareable = db.Column(db.Boolean, default=False)
     
     def to_dict(self):
         return {
@@ -540,11 +529,6 @@ def update_simulation(sim_id):
             simulation.improved_monthly_water_liters
         )
         
-        # Track user's total CO2 reduced and check for badges
-        user = User.query.get(user_id)
-        user.total_co2_reduced += simulation.annual_savings
-        check_and_award_badges(user)
-        
         db.session.commit()
         
         return jsonify(simulation.to_dict()), 200
@@ -685,46 +669,7 @@ def generate_recommendations(simulation):
 
 def run_startup_migrations():
     """Apply lightweight schema updates for existing databases."""
-    engine = db.engine
-    inspector = inspect(engine)
-    dialect = engine.dialect.name
-
-    def column_exists(table_name, column_name):
-        if not inspector.has_table(table_name):
-            return False
-        columns = inspector.get_columns(table_name)
-        return any(col['name'] == column_name for col in columns)
-
-    # Keep legacy user tables compatible with new badge features.
-    if inspector.has_table('user'):
-        if not column_exists('user', 'badges'):
-            if dialect == 'postgresql':
-                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN badges JSON"))
-                db.session.execute(text("UPDATE \"user\" SET badges = '[]'::json WHERE badges IS NULL"))
-            else:
-                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN badges TEXT"))
-                db.session.execute(text("UPDATE \"user\" SET badges = '[]' WHERE badges IS NULL"))
-
-        if not column_exists('user', 'total_co2_reduced'):
-            if dialect == 'postgresql':
-                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN total_co2_reduced DOUBLE PRECISION DEFAULT 0"))
-            else:
-                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN total_co2_reduced REAL DEFAULT 0"))
-            db.session.execute(text("UPDATE \"user\" SET total_co2_reduced = 0 WHERE total_co2_reduced IS NULL"))
-
-    # Keep legacy simulation tables compatible with sharing features.
-    if inspector.has_table('simulation'):
-        if not column_exists('simulation', 'share_token'):
-            db.session.execute(text("ALTER TABLE simulation ADD COLUMN share_token VARCHAR(36)"))
-
-        if not column_exists('simulation', 'is_shareable'):
-            if dialect == 'postgresql':
-                db.session.execute(text("ALTER TABLE simulation ADD COLUMN is_shareable BOOLEAN DEFAULT FALSE"))
-            else:
-                db.session.execute(text("ALTER TABLE simulation ADD COLUMN is_shareable BOOLEAN DEFAULT 0"))
-            db.session.execute(text("UPDATE simulation SET is_shareable = FALSE WHERE is_shareable IS NULL"))
-
-    db.session.commit()
+    return
 
 
 # ==================== Feature 1: Compare Simulations ====================
@@ -848,83 +793,7 @@ def get_simulation_history(sim_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ==================== Feature 4: Impact Badges & Milestones ====================
-def check_and_award_badges(user):
-    """Check for badge achievements based on user progress"""
-    if not isinstance(user.badges, list):
-        user.badges = []
-    
-    badges_to_award = []
-    
-    # CO2 Reduction Milestones
-    if user.total_co2_reduced >= 500 and 'Carbon Reducer' not in user.badges:
-        badges_to_award.append('Carbon Reducer')
-    if user.total_co2_reduced >= 1000 and 'Eco Warrior' not in user.badges:
-        badges_to_award.append('Eco Warrior')
-    if user.total_co2_reduced >= 2000 and 'Green Champion' not in user.badges:
-        badges_to_award.append('Green Champion')
-    
-    # Simulation milestones
-    sim_count = len(user.simulations)
-    if sim_count >= 5 and 'Dedicated Planner' not in user.badges:
-        badges_to_award.append('Dedicated Planner')
-    if sim_count >= 10 and 'Master Simulator' not in user.badges:
-        badges_to_award.append('Master Simulator')
-    
-    # Goal achievements
-    completed_goals = len([g for g in user.goals if g.is_completed])
-    if completed_goals >= 3 and 'Goal Achiever' not in user.badges:
-        badges_to_award.append('Goal Achiever')
-    
-    for badge in badges_to_award:
-        if badge not in user.badges:
-            user.badges.append(badge)
-    
-    return badges_to_award
-
-
-@app.route('/api/user/badges', methods=['GET'])
-@jwt_required()
-def get_user_badges():
-    """Get user badges and achievements"""
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        check_and_award_badges(user)
-        db.session.commit()
-        
-        badge_descriptions = {
-            'Carbon Reducer': 'Reduced 500+ kg of CO2 emissions',
-            'Eco Warrior': 'Reduced 1000+ kg of CO2 emissions',
-            'Green Champion': 'Reduced 2000+ kg of CO2 emissions',
-            'Dedicated Planner': 'Created 5+ simulations',
-            'Master Simulator': 'Created 10+ simulations',
-            'Goal Achiever': 'Completed 3+ sustainability goals'
-        }
-        
-        badges_data = []
-        for badge in user.badges:
-            badges_data.append({
-                'name': badge,
-                'description': badge_descriptions.get(badge, 'Achievement unlocked!'),
-                'earned_date': datetime.now().isoformat()
-            })
-        
-        return jsonify({
-            'badges': badges_data,
-            'total_co2_reduced': user.total_co2_reduced,
-            'total_badges': len(user.badges)
-        }), 200
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== Feature 5: Enhanced Recommendations ====================
+# ==================== Feature 4: Enhanced Recommendations ====================
 @app.route('/api/simulations/<int:sim_id>/recommendations-ranked', methods=['GET'])
 @jwt_required()
 def get_recommendations_ranked(sim_id):
@@ -990,7 +859,7 @@ def get_recommendations_ranked(sim_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ==================== Feature 6: Goal Setting & Tracking ====================
+# ==================== Feature 5: Goal Setting & Tracking ====================
 @app.route('/api/goals', methods=['POST'])
 @jwt_required()
 def create_goal():
@@ -1094,7 +963,7 @@ def delete_goal(goal_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ==================== Feature 7: Search & Filter Simulations ====================
+# ==================== Feature 6: Search & Filter Simulations ====================
 @app.route('/api/simulations/search', methods=['GET'])
 @jwt_required()
 def search_simulations():
@@ -1151,83 +1020,6 @@ def search_simulations():
         }), 200
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== Feature 8: Sharing & Social ====================
-@app.route('/api/simulations/<int:sim_id>/generate-share-link', methods=['POST'])
-@jwt_required()
-def generate_share_link(sim_id):
-    """Generate a shareable link for a simulation"""
-    try:
-        user_id = get_jwt_identity()
-        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
-        
-        if not simulation:
-            return jsonify({'error': 'Simulation not found'}), 404
-        
-        if not simulation.share_token:
-            simulation.share_token = str(uuid.uuid4())
-        
-        simulation.is_shareable = True
-        db.session.commit()
-        
-        share_url = f"https://your-app-domain.com/share/{simulation.share_token}"
-        
-        return jsonify({
-            'message': 'Share link generated',
-            'share_token': simulation.share_token,
-            'share_url': share_url,
-            'is_shareable': True
-        }), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/share/<share_token>', methods=['GET'])
-def view_shared_simulation(share_token):
-    """View a publicly shared simulation (no authentication required)"""
-    try:
-        simulation = Simulation.query.filter_by(share_token=share_token, is_shareable=True).first()
-        
-        if not simulation:
-            return jsonify({'error': 'Shared simulation not found or expired'}), 404
-        
-        user = User.query.get(simulation.user_id)
-        
-        return jsonify({
-            'simulation': simulation.to_dict(),
-            'shared_by': {
-                'username': user.username,
-                'created_date': user.created_at.isoformat() if user.created_at else None
-            },
-            'shared_at': datetime.now().isoformat()
-        }), 200
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/simulations/<int:sim_id>/disable-sharing', methods=['POST'])
-@jwt_required()
-def disable_sharing(sim_id):
-    """Disable sharing for a simulation"""
-    try:
-        user_id = get_jwt_identity()
-        simulation = Simulation.query.filter_by(id=sim_id, user_id=user_id).first()
-        
-        if not simulation:
-            return jsonify({'error': 'Simulation not found'}), 404
-        
-        simulation.is_shareable = False
-        db.session.commit()
-        
-        return jsonify({'message': 'Sharing disabled'}), 200
-    
-    except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 
