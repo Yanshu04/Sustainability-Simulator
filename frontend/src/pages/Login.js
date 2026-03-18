@@ -17,7 +17,7 @@ export const Login = () => {
       setLoading(true);
       setError(null);
       await login(identifier, password);
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
     } finally {
