@@ -70,21 +70,24 @@ export const Dashboard = () => {
     localStorage.setItem(`onboarding_seen_${user.id}`, '1');
   };
 
+  // Intentionally run once on mount to bootstrap dashboard data.
   useEffect(() => {
     loadSimulations();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Intentionally run once on mount to bootstrap goals.
   useEffect(() => {
     loadGoals();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Intentionally tied only to selected simulation changes.
   useEffect(() => {
     if (!selectedSim?.id) {
       setRecommendations([]);
       return;
     }
     loadRecommendations(selectedSim.id);
-  }, [selectedSim?.id]);
+  }, [selectedSim?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user?.id) return;
