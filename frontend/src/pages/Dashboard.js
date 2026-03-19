@@ -57,11 +57,18 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [formPlacement, setFormPlacement] = useState('sidebar');
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showImprovedScenario, setShowImprovedScenario] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [goals, setGoals] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
+
+  const markOnboardingSeen = () => {
+    if (!user?.id) return;
+    localStorage.setItem(`onboarding_seen_${user.id}`, '1');
+  };
 
   useEffect(() => {
     loadSimulations();
@@ -173,6 +180,8 @@ export const Dashboard = () => {
       const response = await simulationAPI.list();
       setSimulations(response.data);
       if (response.data.length > 0) {
+        markOnboardingSeen();
+        setShowOnboarding(false);
         setSelectedSim(response.data[0]);
       }
     } catch (err) {
@@ -220,7 +229,9 @@ export const Dashboard = () => {
       setSimulations([...simulations, response.data]);
       setSelectedSim(response.data);
       setShowForm(false);
+      setFormPlacement('sidebar');
       setShowTemplatePicker(false);
+      markOnboardingSeen();
       setShowOnboarding(false);
       setError(null);
     } catch (err) {
@@ -314,24 +325,31 @@ export const Dashboard = () => {
   };
 
   const completeOnboarding = () => {
-    if (user?.id) {
-      localStorage.setItem(`onboarding_seen_${user.id}`, '1');
-    }
+    markOnboardingSeen();
     setShowOnboarding(false);
   };
 
   const handleNewSimulationClick = () => {
     if (showForm || showTemplatePicker) {
       setShowForm(false);
+      setFormPlacement('sidebar');
       setShowTemplatePicker(false);
       return;
     }
 
+    setFormPlacement('sidebar');
     setShowTemplatePicker(true);
     setShowForm(false);
   };
 
   const handleStartManualSimulation = () => {
+    setFormPlacement('main');
+    setShowTemplatePicker(false);
+    setShowForm(true);
+  };
+
+  const handleStartQuickForm = () => {
+    setFormPlacement('main');
     setShowTemplatePicker(false);
     setShowForm(true);
   };
@@ -347,6 +365,8 @@ export const Dashboard = () => {
     });
   };
 
+  const isMainCreateFlow = showForm && formPlacement === 'main';
+
   if (loading) {
     return <div className="dashboard loading">Loading...</div>;
   }
@@ -354,7 +374,18 @@ export const Dashboard = () => {
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>Sustainability Simulator</h1>
+        <div className="dashboard-header-row">
+          <h1>Sustainability Simulator</h1>
+          {!isMainCreateFlow && selectedSim && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowImprovedScenario((prev) => !prev)}
+            >
+              {showImprovedScenario ? 'Close Explore Improved Scenario' : 'Open Explore Improved Scenario'}
+            </button>
+          )}
+        </div>
         <p>Welcome, {user?.username}! Explore your environmental impact.</p>
       </div>
 
@@ -428,11 +459,12 @@ export const Dashboard = () => {
             </div>
           )}
 
-          {showForm && (
+          {showForm && formPlacement === 'sidebar' && (
             <div className="form-container">
               <LifestyleInputForm onSubmit={handleCreateSimulation} draftKey={`create_${user?.id || 'guest'}`} />
             </div>
           )}
+
         </div>
 
         <div className="main-content">
@@ -441,14 +473,20 @@ export const Dashboard = () => {
               <h3>Quick Start</h3>
               <p>Create your first scenario in under one minute. You can use a template or fill the full form.</p>
               <div className="onboarding-actions">
-                <button className="btn btn-primary" onClick={() => setShowForm(true)}>Start with form</button>
+                <button className="btn btn-primary" onClick={handleStartQuickForm}>Start with form</button>
                 <button className="btn btn-secondary" onClick={() => handleCreateFromTemplate('eco')}>Use Eco template</button>
                 <button className="btn" onClick={completeOnboarding}>Dismiss</button>
               </div>
             </div>
           )}
 
-          {selectedSim ? (
+          {showForm && formPlacement === 'main' && (
+            <div className="onboarding-form-container">
+              <LifestyleInputForm onSubmit={handleCreateSimulation} draftKey={`create_${user?.id || 'guest'}`} />
+            </div>
+          )}
+
+          {!isMainCreateFlow && selectedSim ? (
             <>
               <div className="simulation-header">
                 <h2>{selectedSim.name}</h2>
@@ -563,24 +601,26 @@ export const Dashboard = () => {
               </div>
 
               {/* Improved Scenario Form */}
-              <div className="improved-scenario">
-                <h3>Explore Improved Scenario</h3>
-                <LifestyleInputForm
-                  draftKey={`improved_${selectedSim.id}`}
-                  initialData={{
-                    daily_car_distance: selectedSim.improved.car_distance,
-                    car_type: selectedSim.improved.car_type,
-                    daily_bike_distance: selectedSim.improved.bike_distance,
-                    daily_walk_distance: selectedSim.improved.walk_distance,
-                    diet_type: selectedSim.improved.diet_type,
-                    meals_per_day: selectedSim.improved.meals_per_day,
-                    monthly_electricity_kwh: selectedSim.improved.electricity_kwh,
-                    monthly_gas_usage: selectedSim.improved.gas_usage,
-                    monthly_water_liters: selectedSim.improved.water_liters,
-                  }}
-                  onSubmit={handleUpdateSimulation}
-                />
-              </div>
+              {showImprovedScenario && (
+                <div className="improved-scenario">
+                  <h3>Explore Improved Scenario</h3>
+                  <LifestyleInputForm
+                    draftKey={`improved_${selectedSim.id}`}
+                    initialData={{
+                      daily_car_distance: selectedSim.improved.car_distance,
+                      car_type: selectedSim.improved.car_type,
+                      daily_bike_distance: selectedSim.improved.bike_distance,
+                      daily_walk_distance: selectedSim.improved.walk_distance,
+                      diet_type: selectedSim.improved.diet_type,
+                      meals_per_day: selectedSim.improved.meals_per_day,
+                      monthly_electricity_kwh: selectedSim.improved.electricity_kwh,
+                      monthly_gas_usage: selectedSim.improved.gas_usage,
+                      monthly_water_liters: selectedSim.improved.water_liters,
+                    }}
+                    onSubmit={handleUpdateSimulation}
+                  />
+                </div>
+              )}
 
               <div className="action-buttons">
                 <button
@@ -591,7 +631,7 @@ export const Dashboard = () => {
                 </button>
               </div>
             </>
-          ) : (
+          ) : !isMainCreateFlow ? (
             <div className="empty-state">
               <h2>No simulation selected</h2>
               <p>Create a simulation or start from a template.</p>
@@ -607,7 +647,7 @@ export const Dashboard = () => {
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

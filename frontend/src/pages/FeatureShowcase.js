@@ -222,187 +222,197 @@ export const FeatureShowcase = () => {
           <h4>Selected Pair</h4>
           <p>{selectedA?.name || 'None'} vs {selectedB?.name || 'None'}</p>
         </div>
+        <div className="metric-card">
+          <h4>System State</h4>
+          <p>{healthRunning ? 'Running checks' : loading ? 'Processing request' : 'Ready'}</p>
+        </div>
       </div>
 
-      <div className="showcase-grid">
-        <article className="showcase-card">
-          <h3>Simulation Context</h3>
-          <p className="muted">Pick simulations used by compare, history, recommendation, and export tools.</p>
-          <label>Simulation A</label>
-          <select value={simIdA} onChange={(e) => setSimIdA(e.target.value)}>
-            <option value="">Select</option>
-            {simulations.map((sim) => (
-              <option key={sim.id} value={sim.id}>
-                {sim.id} - {sim.name}
-              </option>
-            ))}
-          </select>
-
-          <label>Simulation B</label>
-          <select value={simIdB} onChange={(e) => setSimIdB(e.target.value)}>
-            <option value="">Select</option>
-            {simulations.map((sim) => (
-              <option key={sim.id} value={sim.id}>
-                {sim.id} - {sim.name}
-              </option>
-            ))}
-          </select>
-
-          <div className="button-row">
-            <button
-              className="btn btn-primary"
-              disabled={loading || !simIdA || !simIdB}
-              onClick={() => runAction('Compare simulations', async () => (await featureAPI.compare(simIdA, simIdB)).data)}
-            >
-              Compare A vs B
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading || !simIdA}
-              onClick={() => runAction('Simulation history', async () => (await featureAPI.history(simIdA)).data)}
-            >
-              View History
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading || !simIdA}
-              onClick={() => runAction('Ranked recommendations', async () => (await featureAPI.recommendationsRanked(simIdA)).data)}
-            >
-              Ranked Recommendations
-            </button>
-            <button className="btn btn-secondary" disabled={loading || !simIdA} onClick={handleExportCsv}>
-              Export CSV
-            </button>
-          </div>
-        </article>
-
-        <article className="showcase-card">
-          <h3>Search and Filter</h3>
-          <p className="muted">Search by name/description and sort to validate discoverability behavior.</p>
-          <label>Search text</label>
-          <input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Type simulation name..." />
-          <label>Sort by</label>
-          <select value={searchSort} onChange={(e) => setSearchSort(e.target.value)}>
-            <option value="created_at">Newest</option>
-            <option value="emissions">Highest emissions</option>
-            <option value="savings">Highest savings</option>
-          </select>
-          <div className="button-row">
-            <button
-              className="btn btn-primary"
-              disabled={loading}
-              onClick={() =>
-                runAction('Search simulations', async () => {
-                  const response = await featureAPI.search({ search: searchText, sort: searchSort });
-                  return response.data;
-                })
-              }
-            >
-              Run Search
-            </button>
-          </div>
-        </article>
-
-        <article className="showcase-card">
-          <h3>Goal Management</h3>
-          <p className="muted">Create, list, update, and delete goals while tracking the selected goal id.</p>
-          <label>Goal name</label>
-          <input value={goalName} onChange={(e) => setGoalName(e.target.value)} />
-          <label>Deadline (ISO format)</label>
-          <input value={goalDeadline} onChange={(e) => setGoalDeadline(e.target.value)} placeholder="YYYY-MM-DDTHH:mm:ss" />
-          <label>Goal id for update/delete</label>
-          <input value={goalId} onChange={(e) => setGoalId(e.target.value)} placeholder="e.g. 5" />
-
-          <div className="button-row">
-            <button
-              className="btn btn-primary"
-              disabled={loading}
-              onClick={() =>
-                runAction('Create goal', async () => {
-                  const response = await featureAPI.createGoal({
-                    name: goalName,
-                    description: 'Created from feature showcase',
-                    target_reduction_percent: 20,
-                    target_deadline: goalDeadline,
-                    category: 'overall',
-                  });
-                  const createdId = response.data?.goal?.id;
-                  if (createdId) {
-                    setGoalId(String(createdId));
-                  }
-                  await loadGoals();
-                  return response.data;
-                })
-              }
-            >
-              Create Goal
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading}
-              onClick={() => runAction('List goals', async () => (await featureAPI.listGoals()).data)}
-            >
-              List Goals
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={loading || !goalId}
-              onClick={() =>
-                runAction('Update goal', async () => {
-                  const response = await featureAPI.updateGoal(goalId, {
-                    current_reduction_percent: 35,
-                    is_completed: true,
-                  });
-                  await loadGoals();
-                  return response.data;
-                })
-              }
-            >
-              Mark Complete
-            </button>
-            <button
-              className="btn btn-danger"
-              disabled={loading || !goalId}
-              onClick={() =>
-                runAction('Delete goal', async () => {
-                  const response = await featureAPI.deleteGoal(goalId);
-                  await loadGoals();
-                  return response.data;
-                })
-              }
-            >
-              Delete Goal
-            </button>
-          </div>
-        </article>
-
-        <article className="showcase-card">
-          <h3>Operation Log</h3>
-          <p className="muted">Most recent actions and status for quick troubleshooting.</p>
-          {operationLog.length === 0 ? (
-            <p className="muted">No operations yet.</p>
-          ) : (
-            <ul className="operation-log">
-              {operationLog.map((entry, idx) => (
-                <li key={`${entry.timestamp}-${idx}`}>
-                  <span className={`status-pill ${entry.status === 'success' ? 'ok' : 'fail'}`}>{entry.status}</span>
-                  <div>
-                    <strong>{entry.label}</strong>
-                    <p>{entry.details}</p>
-                  </div>
-                </li>
+      <div className="showcase-layout">
+        <div className="showcase-workbench">
+          <article className="showcase-card showcase-card-context">
+            <h3>Simulation Context</h3>
+            <p className="muted">Pick simulations used by compare, history, recommendation, and export tools.</p>
+            <label>Simulation A</label>
+            <select value={simIdA} onChange={(e) => setSimIdA(e.target.value)}>
+              <option value="">Select</option>
+              {simulations.map((sim) => (
+                <option key={sim.id} value={sim.id}>
+                  {sim.id} - {sim.name}
+                </option>
               ))}
-            </ul>
-          )}
-        </article>
+            </select>
+
+            <label>Simulation B</label>
+            <select value={simIdB} onChange={(e) => setSimIdB(e.target.value)}>
+              <option value="">Select</option>
+              {simulations.map((sim) => (
+                <option key={sim.id} value={sim.id}>
+                  {sim.id} - {sim.name}
+                </option>
+              ))}
+            </select>
+
+            <div className="button-row">
+              <button
+                className="btn btn-primary"
+                disabled={loading || !simIdA || !simIdB}
+                onClick={() => runAction('Compare simulations', async () => (await featureAPI.compare(simIdA, simIdB)).data)}
+              >
+                Compare A vs B
+              </button>
+              <button
+                className="btn btn-secondary"
+                disabled={loading || !simIdA}
+                onClick={() => runAction('Simulation history', async () => (await featureAPI.history(simIdA)).data)}
+              >
+                View History
+              </button>
+              <button
+                className="btn btn-secondary"
+                disabled={loading || !simIdA}
+                onClick={() => runAction('Ranked recommendations', async () => (await featureAPI.recommendationsRanked(simIdA)).data)}
+              >
+                Ranked Recommendations
+              </button>
+              <button className="btn btn-secondary" disabled={loading || !simIdA} onClick={handleExportCsv}>
+                Export CSV
+              </button>
+            </div>
+          </article>
+
+          <div className="showcase-grid">
+            <article className="showcase-card">
+              <h3>Search and Filter</h3>
+              <p className="muted">Search by name/description and sort to validate discoverability behavior.</p>
+              <label>Search text</label>
+              <input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Type simulation name..." />
+              <label>Sort by</label>
+              <select value={searchSort} onChange={(e) => setSearchSort(e.target.value)}>
+                <option value="created_at">Newest</option>
+                <option value="emissions">Highest emissions</option>
+                <option value="savings">Highest savings</option>
+              </select>
+              <div className="button-row">
+                <button
+                  className="btn btn-primary"
+                  disabled={loading}
+                  onClick={() =>
+                    runAction('Search simulations', async () => {
+                      const response = await featureAPI.search({ search: searchText, sort: searchSort });
+                      return response.data;
+                    })
+                  }
+                >
+                  Run Search
+                </button>
+              </div>
+            </article>
+
+            <article className="showcase-card">
+              <h3>Goal Management</h3>
+              <p className="muted">Create, list, update, and delete goals while tracking the selected goal id.</p>
+              <label>Goal name</label>
+              <input value={goalName} onChange={(e) => setGoalName(e.target.value)} />
+              <label>Deadline (ISO format)</label>
+              <input value={goalDeadline} onChange={(e) => setGoalDeadline(e.target.value)} placeholder="YYYY-MM-DDTHH:mm:ss" />
+              <label>Goal id for update/delete</label>
+              <input value={goalId} onChange={(e) => setGoalId(e.target.value)} placeholder="e.g. 5" />
+
+              <div className="button-row">
+                <button
+                  className="btn btn-primary"
+                  disabled={loading}
+                  onClick={() =>
+                    runAction('Create goal', async () => {
+                      const response = await featureAPI.createGoal({
+                        name: goalName,
+                        description: 'Created from feature showcase',
+                        target_reduction_percent: 20,
+                        target_deadline: goalDeadline,
+                        category: 'overall',
+                      });
+                      const createdId = response.data?.goal?.id;
+                      if (createdId) {
+                        setGoalId(String(createdId));
+                      }
+                      await loadGoals();
+                      return response.data;
+                    })
+                  }
+                >
+                  Create Goal
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  disabled={loading}
+                  onClick={() => runAction('List goals', async () => (await featureAPI.listGoals()).data)}
+                >
+                  List Goals
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  disabled={loading || !goalId}
+                  onClick={() =>
+                    runAction('Update goal', async () => {
+                      const response = await featureAPI.updateGoal(goalId, {
+                        current_reduction_percent: 35,
+                        is_completed: true,
+                      });
+                      await loadGoals();
+                      return response.data;
+                    })
+                  }
+                >
+                  Mark Complete
+                </button>
+                <button
+                  className="btn btn-danger"
+                  disabled={loading || !goalId}
+                  onClick={() =>
+                    runAction('Delete goal', async () => {
+                      const response = await featureAPI.deleteGoal(goalId);
+                      await loadGoals();
+                      return response.data;
+                    })
+                  }
+                >
+                  Delete Goal
+                </button>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <aside className="showcase-inspector">
+          {message && <p className="showcase-message">{message}</p>}
+
+          <article className="showcase-card">
+            <h3>Operation Log</h3>
+            <p className="muted">Most recent actions and status for quick troubleshooting.</p>
+            {operationLog.length === 0 ? (
+              <p className="muted">No operations yet.</p>
+            ) : (
+              <ul className="operation-log">
+                {operationLog.map((entry, idx) => (
+                  <li key={`${entry.timestamp}-${idx}`}>
+                    <span className={`status-pill ${entry.status === 'success' ? 'ok' : 'fail'}`}>{entry.status}</span>
+                    <div>
+                      <strong>{entry.label}</strong>
+                      <p>{entry.details}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          <section className="showcase-output">
+            <h3>Latest API Output</h3>
+            <pre>{result ? prettyJson(result) : 'Run an action to inspect API payloads here.'}</pre>
+          </section>
+        </aside>
       </div>
-
-      {message && <p className="showcase-message">{message}</p>}
-
-      <section className="showcase-output">
-        <h3>Latest API Output</h3>
-        <pre>{result ? prettyJson(result) : 'Run an action to inspect API payloads here.'}</pre>
-      </section>
     </section>
   );
 };
