@@ -726,6 +726,9 @@ def export_simulation(sim_id):
             return jsonify({'error': 'Simulation not found'}), 404
         
         export_format = request.args.get('format', 'csv').lower()
+
+        def safe_num(value):
+            return float(value) if value is not None else 0.0
         
         if export_format == 'csv':
             output = StringIO()
@@ -736,21 +739,21 @@ def export_simulation(sim_id):
             
             writer.writerow({
                 'Metric': 'Annual CO2 Emissions (kg)',
-                'Current': round(simulation.current_annual_emissions, 2),
-                'Improved': round(simulation.improved_annual_emissions, 2),
-                'Savings': round(simulation.annual_savings, 2)
+                'Current': round(safe_num(simulation.current_annual_emissions), 2),
+                'Improved': round(safe_num(simulation.improved_annual_emissions), 2),
+                'Savings': round(safe_num(simulation.annual_savings), 2)
             })
             writer.writerow({
                 'Metric': 'Annual Cost (INR)',
-                'Current': round(simulation.current_cost_annual, 2),
-                'Improved': round(simulation.improved_cost_annual, 2),
-                'Savings': round(simulation.current_cost_annual - simulation.improved_cost_annual, 2)
+                'Current': round(safe_num(simulation.current_cost_annual), 2),
+                'Improved': round(safe_num(simulation.improved_cost_annual), 2),
+                'Savings': round(safe_num(simulation.current_cost_annual) - safe_num(simulation.improved_cost_annual), 2)
             })
             writer.writerow({
                 'Metric': 'Annual Water Usage (L)',
-                'Current': round(simulation.current_water_annual, 2),
-                'Improved': round(simulation.improved_water_annual, 2),
-                'Savings': round(simulation.current_water_annual - simulation.improved_water_annual, 2)
+                'Current': round(safe_num(simulation.current_water_annual), 2),
+                'Improved': round(safe_num(simulation.improved_water_annual), 2),
+                'Savings': round(safe_num(simulation.current_water_annual) - safe_num(simulation.improved_water_annual), 2)
             })
             
             output.seek(0)
@@ -1024,6 +1027,22 @@ def search_simulations():
 
 
 # ==================== Error Handlers ====================
+
+@app.route('/', methods=['GET'])
+def root_index():
+    return jsonify({
+        'message': 'Sustainability Simulator API is running',
+        'health': '/api/health',
+        'docs_hint': 'Use /api/* endpoints from the frontend client'
+    }), 200
+
+
+@app.route('/api', methods=['GET'])
+def api_index():
+    return jsonify({
+        'message': 'API root',
+        'health': '/api/health'
+    }), 200
 
 @app.errorhandler(404)
 def not_found(error):

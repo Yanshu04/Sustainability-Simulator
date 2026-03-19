@@ -34,6 +34,7 @@
 }
 
 input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 
@@ -51,4 +52,41 @@ select {
   background-position: right 0.65rem center;
   background-size: 1rem;
   padding-right: 2.1rem;
+}
+
+.quick-estimate {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: var(--surface-soft);
+  margin-bottom: 0.9rem;
+}
+
+.quick-estimate h4 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.quick-estimate p {
+  color: var(--text-muted);
+  font-size: 0.87rem;
+}
+
+.quick-estimate-total {
+  margin-top: 0.35rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+@media (max-width: 680px) {
+  .form-actions {
+    flex-direction: column;
+  }
 }
