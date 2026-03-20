@@ -245,6 +245,12 @@
   margin-bottom: 0.6rem;
 }
 
+.recommendation-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .recommendation-list {
   list-style: none;
   display: grid;
@@ -265,6 +271,41 @@
 .recommendation-list p {
   color: var(--text-muted);
   font-size: 0.84rem;
+}
+
+.recommendation-list-full {
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.recommendations-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 18, 16, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 320;
+}
+
+.recommendations-modal {
+  width: min(820px, 95vw);
+  max-height: min(80vh, 700px);
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+
+.recommendations-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 
 .simulation-header {
@@ -387,5 +428,24 @@
 
   .action-buttons .btn {
     width: 100%;
+  }
+
+  .recommendations-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recommendation-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .recommendation-actions .btn {
+    flex: 1;
+  }
+
+  .recommendations-modal {
+    width: 100%;
+    padding: 0.85rem;
   }
 }

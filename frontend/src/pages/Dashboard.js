@@ -8,6 +8,9 @@ import {
 } from '../components/Charts';
 import '../styles/Dashboard.css';
 
+const MAX_RECOMMENDED_ACTIONS = 3;
+const DASHBOARD_EVENT_LOG_KEY = 'dashboard_recommendation_events';
+
 const SCENARIO_TEMPLATES = {
   student: {
     name: 'Student Commuter',
@@ -64,6 +67,37 @@ export const Dashboard = () => {
   const [goals, setGoals] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [showAllRecommendations, setShowAllRecommendations] = useState(false);
+  const [applyingRecommendationKey, setApplyingRecommendationKey] = useState('');
+  const [appliedRecommendationKeys, setAppliedRecommendationKeys] = useState([]);
+
+  const getRecommendationKey = (recommendation) => {
+    const suggestion = (recommendation?.suggestion || '').trim().toLowerCase();
+    const impact = (recommendation?.impact || '').trim().toLowerCase();
+    return `${suggestion}|${impact}`;
+  };
+
+  const trackRecommendationEvent = (eventName, payload = {}) => {
+    const event = {
+      eventName,
+      timestamp: new Date().toISOString(),
+      userId: user?.id || null,
+      simulationId: selectedSim?.id || null,
+      ...payload,
+    };
+
+    try {
+      const existingRaw = localStorage.getItem(DASHBOARD_EVENT_LOG_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      const next = Array.isArray(existing) ? [...existing, event].slice(-100) : [event];
+      localStorage.setItem(DASHBOARD_EVENT_LOG_KEY, JSON.stringify(next));
+    } catch (_) {
+      // Ignore storage errors and keep event logging non-blocking.
+    }
+
+    // Keep a visible trace for local verification during development.
+    console.info('[dashboard-event]', event);
+  };
 
   const markOnboardingSeen = () => {
     if (!user?.id) return;
@@ -84,8 +118,12 @@ export const Dashboard = () => {
   useEffect(() => {
     if (!selectedSim?.id) {
       setRecommendations([]);
+      setAppliedRecommendationKeys([]);
+      setApplyingRecommendationKey('');
       return;
     }
+    setAppliedRecommendationKeys([]);
+    setApplyingRecommendationKey('');
     loadRecommendations(selectedSim.id);
   }, [selectedSim?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -95,6 +133,21 @@ export const Dashboard = () => {
     const seen = localStorage.getItem(key);
     setShowOnboarding(!seen);
   }, [user]);
+
+  useEffect(() => {
+    if (!showAllRecommendations) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowAllRecommendations(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showAllRecommendations]);
 
   const dashboardSummary = useMemo(() => {
     if (!simulations.length) {
@@ -265,8 +318,10 @@ export const Dashboard = () => {
       setSelectedSim(response.data);
       setSimulations((prev) => prev.map((sim) => (sim.id === response.data.id ? response.data : sim)));
       setError(null);
+      return true;
     } catch (err) {
       setError('Failed to update simulation');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -284,8 +339,20 @@ export const Dashboard = () => {
     }
   };
 
-  const applyRecommendation = async (recommendation) => {
+  const applyRecommendation = async (recommendation, source = 'top3') => {
     if (!selectedSim) return;
+
+    const recommendationKey = getRecommendationKey(recommendation);
+    if (!recommendationKey || appliedRecommendationKeys.includes(recommendationKey)) {
+      return;
+    }
+
+    setApplyingRecommendationKey(recommendationKey);
+
+    trackRecommendationEvent('recommendation_apply_clicked', {
+      source,
+      suggestion: recommendation?.suggestion || '',
+    });
 
     const improved = {
       daily_car_distance: selectedSim.improved.car_distance,
@@ -324,7 +391,14 @@ export const Dashboard = () => {
       improved.monthly_water_liters = Math.max(2500, Math.round(improved.monthly_water_liters * 0.8));
     }
 
-    await handleUpdateSimulation(improved);
+    const updated = await handleUpdateSimulation(improved);
+    if (updated) {
+      setAppliedRecommendationKeys((prev) =>
+        prev.includes(recommendationKey) ? prev : [...prev, recommendationKey]
+      );
+    }
+
+    setApplyingRecommendationKey('');
   };
 
   const completeOnboarding = () => {
@@ -587,33 +661,121 @@ export const Dashboard = () => {
               <div className="recommendations-panel">
                 <div className="recommendations-header">
                   <h3>Recommended Next Actions</h3>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-small"
-                    disabled={insightsLoading}
-                    onClick={() => loadRecommendations(selectedSim.id)}
-                  >
-                    {insightsLoading ? 'Refreshing...' : 'Refresh'}
-                  </button>
+                  <div className="recommendation-actions">
+                    {recommendations.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        onClick={() => {
+                          trackRecommendationEvent('recommendation_view_all_opened', {
+                            totalRecommendations: recommendations.length,
+                          });
+                          setShowAllRecommendations(true);
+                        }}
+                      >
+                        View all ({recommendations.length})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-small"
+                      disabled={insightsLoading}
+                      onClick={() => loadRecommendations(selectedSim.id)}
+                    >
+                      {insightsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
                 </div>
                 {recommendations.length === 0 ? (
                   <p className="muted">No recommendations available for this simulation.</p>
                 ) : (
-                  <ul className="recommendation-list">
-                    {recommendations.slice(0, 3).map((rec, index) => (
-                      <li key={`${rec.suggestion}-${index}`}>
-                        <div>
-                          <strong>{rec.suggestion}</strong>
-                          <p>{rec.impact}</p>
-                        </div>
-                        <button className="btn btn-primary btn-small" onClick={() => applyRecommendation(rec)}>
-                          Apply
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="muted">
+                      Showing top {Math.min(MAX_RECOMMENDED_ACTIONS, recommendations.length)} recommendation cards.
+                    </p>
+                    <ul className="recommendation-list">
+                      {recommendations.slice(0, MAX_RECOMMENDED_ACTIONS).map((rec, index) => (
+                        (() => {
+                          const recKey = getRecommendationKey(rec);
+                          const isApplying = applyingRecommendationKey === recKey;
+                          const isApplied = appliedRecommendationKeys.includes(recKey);
+
+                          return (
+                            <li key={`${rec.suggestion}-${index}`}>
+                              <div>
+                                <strong>{rec.suggestion}</strong>
+                                <p>{rec.impact}</p>
+                              </div>
+                              <button
+                                className="btn btn-primary btn-small"
+                                disabled={isApplying || isApplied}
+                                onClick={() => applyRecommendation(rec, 'top3')}
+                              >
+                                {isApplied ? 'Applied' : isApplying ? 'Applying...' : 'Apply'}
+                              </button>
+                            </li>
+                          );
+                        })()
+                      ))}
+                    </ul>
+                  </>
                 )}
               </div>
+
+              {showAllRecommendations && recommendations.length > 0 && (
+                <div
+                  className="recommendations-modal-backdrop"
+                  role="presentation"
+                  onClick={() => setShowAllRecommendations(false)}
+                >
+                  <div
+                    className="recommendations-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="All recommended actions"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="recommendations-modal-header">
+                      <h3>All Recommended Actions</h3>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        onClick={() => setShowAllRecommendations(false)}
+                      >
+                        Close
+                      </button>
+                    </div>
+                    <ul className="recommendation-list recommendation-list-full">
+                      {recommendations.map((rec, index) => (
+                        (() => {
+                          const recKey = getRecommendationKey(rec);
+                          const isApplying = applyingRecommendationKey === recKey;
+                          const isApplied = appliedRecommendationKeys.includes(recKey);
+
+                          return (
+                            <li key={`modal-${rec.suggestion}-${index}`}>
+                              <div>
+                                <strong>{rec.suggestion}</strong>
+                                <p>{rec.impact}</p>
+                              </div>
+                              <button
+                                className="btn btn-primary btn-small"
+                                disabled={isApplying || isApplied}
+                                onClick={() => {
+                                  applyRecommendation(rec, 'modal');
+                                  setShowAllRecommendations(false);
+                                }}
+                              >
+                                {isApplied ? 'Applied' : isApplying ? 'Applying...' : 'Apply'}
+                              </button>
+                            </li>
+                          );
+                        })()
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               {/* Improved Scenario Form */}
               {showImprovedScenario && (
