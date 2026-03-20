@@ -1,9 +1,23 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../api';
 import { getFirebaseAuth, hasFirebaseConfig } from '../firebase';
 
 // Create Auth Context
 const AuthContext = createContext();
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shouldRetryProfileError = (err) => {
+  if (!err) {
+    return false;
+  }
+
+  const status = err.response?.status;
+  if (!status) {
+    return true;
+  }
+
+  return status >= 500;
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -19,6 +33,33 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const fetchProfile = useCallback(async () => {
+    const maxAttempts = 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await authAPI.getProfile();
+        setUser(response.data);
+        setError(null);
+        setLoading(false);
+        return;
+      } catch (err) {
+        const retryable = shouldRetryProfileError(err);
+        const isLastAttempt = attempt === maxAttempts;
+
+        if (!retryable || isLastAttempt) {
+          localStorage.removeItem('access_token');
+          setUser(null);
+          setError('Failed to load profile');
+          setLoading(false);
+          return;
+        }
+
+        await sleep(900);
+      }
+    }
+  }, []);
+
   // Check if user is already logged in on mount
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -27,21 +68,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const response = await authAPI.getProfile();
-      setUser(response.data);
-      setError(null);
-    } catch (err) {
-      localStorage.removeItem('access_token');
-      setUser(null);
-      setError('Failed to load profile');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchProfile]);
 
   const register = async (username, email, password) => {
     try {

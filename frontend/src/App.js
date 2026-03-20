@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { warmupBackend } from './api';
 import './styles/App.css';
 
 const lazyNamed = (loader, exportName) =>
@@ -14,12 +15,35 @@ const Dashboard = lazyNamed(() => import('./pages/Dashboard'), 'Dashboard');
 const FeatureShowcase = lazyNamed(() => import('./pages/FeatureShowcase'), 'FeatureShowcase');
 const Profile = lazyNamed(() => import('./pages/Profile'), 'Profile');
 
+const LoadingView = () => {
+  const [showColdStartHint, setShowColdStartHint] = useState(false);
+
+  useEffect(() => {
+    const hintTimer = setTimeout(() => {
+      setShowColdStartHint(true);
+    }, 1800);
+
+    return () => clearTimeout(hintTimer);
+  }, []);
+
+  return (
+    <div className="loading-container">
+      <div className="loading-stack">
+        <p>Loading...</p>
+        {showColdStartHint && (
+          <p className="loading-hint">Waking the server. First load on deploy can take up to 30 seconds.</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading-container">Loading...</div>;
+    return <LoadingView />;
   }
 
   return isAuthenticated ? children : <Navigate to="/login" />;
@@ -30,7 +54,7 @@ const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading-container">Loading...</div>;
+    return <LoadingView />;
   }
 
   return isAuthenticated ? <Navigate to="/home" replace /> : children;
@@ -41,7 +65,7 @@ const RootRoute = () => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading-container">Loading...</div>;
+    return <LoadingView />;
   }
 
   return isAuthenticated ? <Navigate to="/home" replace /> : <Home />;
@@ -169,12 +193,16 @@ const Navigation = () => {
 };
 
 function App() {
+  useEffect(() => {
+    warmupBackend();
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
         <Navigation />
         <main className="app-main">
-          <Suspense fallback={<div className="loading-container">Loading...</div>}>
+          <Suspense fallback={<LoadingView />}>
             <Routes>
               <Route path="/" element={<RootRoute />} />
               <Route

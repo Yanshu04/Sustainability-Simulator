@@ -42,9 +42,10 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    const parsedNumber = Math.max(0, Math.round(Number(value) || 0));
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value,
+      [name]: type === 'number' ? parsedNumber : value,
     }));
   };
 
@@ -97,7 +98,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.daily_car_distance}
               onChange={handleChange}
               min="0"
-              step="0.1"
+              step="1"
             />
           </div>
           <div className="form-group">
@@ -119,7 +120,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.daily_bike_distance}
               onChange={handleChange}
               min="0"
-              step="0.1"
+              step="1"
             />
           </div>
           <div className="form-group">
@@ -130,7 +131,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.daily_walk_distance}
               onChange={handleChange}
               min="0"
-              step="0.1"
+              step="1"
             />
           </div>
         </div>
@@ -156,7 +157,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.meals_per_day}
               onChange={handleChange}
               min="0"
-              step="0.5"
+              step="1"
             />
           </div>
         </div>
@@ -173,7 +174,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.monthly_electricity_kwh}
               onChange={handleChange}
               min="0"
-              step="10"
+              step="1"
             />
           </div>
           <div className="form-group">
@@ -198,7 +199,7 @@ export const LifestyleInputForm = ({ onSubmit, initialData, draftKey }) => {
               value={formData.monthly_water_liters}
               onChange={handleChange}
               min="0"
-              step="100"
+              step="1"
             />
           </div>
         </div>

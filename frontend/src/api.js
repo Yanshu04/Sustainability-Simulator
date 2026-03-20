@@ -10,6 +10,8 @@ const API_URL =
     ? 'http://localhost:5000/api'
     : 'https://sustainability-simulator-api.onrender.com/api');
 
+let warmupPromise = null;
+
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
@@ -58,6 +60,26 @@ export const featureAPI = {
   createGoal: (payload) => api.post('/goals', payload),
   updateGoal: (goalId, payload) => api.patch(`/goals/${goalId}`, payload),
   deleteGoal: (goalId) => api.delete(`/goals/${goalId}`),
+};
+
+export const warmupBackend = () => {
+  if (isLocalhost) {
+    return Promise.resolve();
+  }
+
+  if (!warmupPromise) {
+    warmupPromise = api
+      .get('/health', { timeout: 15000 })
+      .catch(() => null)
+      .finally(() => {
+        // Allow occasional re-warm attempts after the initial request.
+        setTimeout(() => {
+          warmupPromise = null;
+        }, 60000);
+      });
+  }
+
+  return warmupPromise;
 };
 
 export { API_URL };

@@ -143,6 +143,20 @@
   min-height: calc(100vh - 70px);
 }
 
+.loading-stack {
+  text-align: center;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0 1rem;
+}
+
+.loading-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 34ch;
+  color: var(--text-muted);
+}
+
 @media (max-width: 780px) {
   .navbar {
     flex-direction: column;
