@@ -115,6 +115,19 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
+  const updateProfile = async (payload) => {
+    try {
+      const response = await authAPI.updateProfile(payload);
+      setUser(response.data.user);
+      setError(null);
+      return response.data.user;
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to update profile';
+      setError(message);
+      throw err;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -122,6 +135,7 @@ export const AuthProvider = ({ children }) => {
     register,
     login,
     logout,
+    updateProfile,
     isAuthenticated: !!user,
   };
 

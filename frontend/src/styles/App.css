@@ -60,6 +60,16 @@
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--line);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.nav-more-icon {
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .nav-more-menu {
@@ -77,6 +87,24 @@
 
 .nav-more-menu .nav-link {
   display: block;
+}
+
+.nav-menu-action {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: 999px;
+  padding: 0.48rem 0.9rem;
+  cursor: pointer;
+}
+
+.nav-menu-action:hover {
+  background: var(--surface-soft);
+  border-color: var(--line);
 }
 
 .theme-toggle {
@@ -97,15 +125,6 @@
 .theme-toggle-icon {
   font-size: 1rem;
   line-height: 1;
-}
-
-.build-badge {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.73rem;
-  color: var(--text-muted);
-  background: var(--surface-soft);
 }
 
 .sr-only {

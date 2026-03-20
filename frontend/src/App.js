@@ -12,6 +12,7 @@ const Login = lazyNamed(() => import('./pages/Login'), 'Login');
 const Register = lazyNamed(() => import('./pages/Register'), 'Register');
 const Dashboard = lazyNamed(() => import('./pages/Dashboard'), 'Dashboard');
 const FeatureShowcase = lazyNamed(() => import('./pages/FeatureShowcase'), 'FeatureShowcase');
+const Profile = lazyNamed(() => import('./pages/Profile'), 'Profile');
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -54,8 +55,6 @@ const Navigation = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const hasStoredToken = !!localStorage.getItem('access_token');
   const showAuthenticatedNav = isAuthenticated || (loading && hasStoredToken);
-  const isAuthenticatedHome = location.pathname === '/home';
-  const buildVersion = process.env.REACT_APP_BUILD_VERSION || 'local';
 
   useEffect(() => {
     setShowMoreMenu(false);
@@ -85,43 +84,58 @@ const Navigation = () => {
         {showAuthenticatedNav ? (
           <>
             <span className="navbar-user">Welcome, {user?.username}</span>
-            {!isAuthenticatedHome && (
-              <NavLink to="/home" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-                Home
-              </NavLink>
-            )}
-            {!isAuthenticatedHome && (
-              <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-                Dashboard
-              </NavLink>
-            )}
-            {!isAuthenticatedHome && (
-              <div className="nav-more">
-                <button
-                  type="button"
-                  className="btn btn-small nav-more-trigger"
-                  aria-haspopup="menu"
-                  aria-expanded={showMoreMenu}
-                  onClick={() => setShowMoreMenu((prev) => !prev)}
-                >
-                  More
-                </button>
-                {showMoreMenu && (
-                  <div className="nav-more-menu" role="menu" aria-label="More navigation">
-                    <NavLink
-                      to="/showcase"
-                      className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                      role="menuitem"
-                    >
-                      Showcase
-                    </NavLink>
-                  </div>
-                )}
-              </div>
-            )}
-            <button className="btn btn-small" onClick={logout}>
-              Logout
-            </button>
+            <NavLink to="/home" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Home
+            </NavLink>
+            <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Dashboard
+            </NavLink>
+            <div className="nav-more">
+              <button
+                type="button"
+                className="btn btn-small nav-more-trigger"
+                aria-label="Open menu"
+                aria-haspopup="menu"
+                aria-expanded={showMoreMenu}
+                onClick={() => setShowMoreMenu((prev) => !prev)}
+              >
+                <span className="nav-more-icon" aria-hidden="true">☰</span>
+              </button>
+              {showMoreMenu && (
+                <div className="nav-more-menu" role="menu" aria-label="More navigation">
+                  <NavLink
+                    to="/profile"
+                    className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                    role="menuitem"
+                  >
+                    Profile
+                  </NavLink>
+                  <NavLink
+                    to="/showcase"
+                    className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                    role="menuitem"
+                  >
+                    Showcase
+                  </NavLink>
+                  <button
+                    type="button"
+                    className="nav-menu-action"
+                    role="menuitem"
+                    onClick={toggleTheme}
+                  >
+                    {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                  </button>
+                  <button
+                    type="button"
+                    className="nav-menu-action"
+                    role="menuitem"
+                    onClick={logout}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -133,23 +147,22 @@ const Navigation = () => {
             </NavLink>
           </>
         )}
-        <button
-          type="button"
-          className="btn btn-small theme-toggle"
-          onClick={toggleTheme}
-          aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-        >
-          <span className="theme-toggle-icon" aria-hidden="true">
-            {theme === 'light' ? '☾' : '☀'}
-          </span>
-          <span className="sr-only">
-            {theme === 'light' ? 'Dark mode' : 'Light mode'}
-          </span>
-        </button>
-        <span className="build-badge" title="Live build version">
-          Build {buildVersion}
-        </span>
+        {!showAuthenticatedNav && (
+          <button
+            type="button"
+            className="btn btn-small theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">
+              {theme === 'light' ? '☾' : '☀'}
+            </span>
+            <span className="sr-only">
+              {theme === 'light' ? 'Dark mode' : 'Light mode'}
+            </span>
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -201,6 +214,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <FeatureShowcase />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 }
               />

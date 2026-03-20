@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 from io import StringIO
 import csv
+from sqlalchemy import inspect
 
 load_dotenv()
 
@@ -51,6 +52,12 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    full_name = db.Column(db.String(120))
+    location = db.Column(db.String(120))
+    household_size = db.Column(db.Integer, default=1)
+    transport_preference = db.Column(db.String(50), default='mixed')
+    diet_preference = db.Column(db.String(50), default='mixed')
+    bio = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     
     simulations = db.relationship('Simulation', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -67,6 +74,12 @@ class User(db.Model):
             'id': self.id,
             'username': self.username,
             'email': self.email,
+            'full_name': self.full_name,
+            'location': self.location,
+            'household_size': self.household_size,
+            'transport_preference': self.transport_preference,
+            'diet_preference': self.diet_preference,
+            'bio': self.bio,
             'created_at': self.created_at.isoformat()
         }
 
@@ -315,7 +328,12 @@ def register():
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'Email already exists'}), 400
         
-        user = User(username=data['username'], email=data['email'])
+        user = User(
+            username=data['username'],
+            email=data['email'],
+            full_name=data.get('full_name'),
+            location=data.get('location')
+        )
         user.set_password(data['password'])
         
         db.session.add(user)
@@ -377,6 +395,75 @@ def get_profile():
         return jsonify(user.to_dict()), 200
     
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    """Update current user profile"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json() or {}
+
+        if 'username' in data:
+            next_username = (data.get('username') or '').strip()
+            if not next_username:
+                return jsonify({'error': 'Username cannot be empty'}), 400
+            existing = User.query.filter(User.username == next_username, User.id != user.id).first()
+            if existing:
+                return jsonify({'error': 'Username already exists'}), 400
+            user.username = next_username
+
+        if 'full_name' in data:
+            user.full_name = (data.get('full_name') or '').strip() or None
+
+        if 'location' in data:
+            user.location = (data.get('location') or '').strip() or None
+
+        if 'household_size' in data:
+            try:
+                household_size = int(data.get('household_size'))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Household size must be a number'}), 400
+            if household_size < 1 or household_size > 20:
+                return jsonify({'error': 'Household size must be between 1 and 20'}), 400
+            user.household_size = household_size
+
+        if 'transport_preference' in data:
+            transport_preference = (data.get('transport_preference') or '').strip().lower()
+            valid_transport = {'car', 'public-transport', 'bike', 'walk', 'mixed'}
+            if transport_preference not in valid_transport:
+                return jsonify({'error': 'Invalid transport preference'}), 400
+            user.transport_preference = transport_preference
+
+        if 'diet_preference' in data:
+            diet_preference = (data.get('diet_preference') or '').strip().lower()
+            valid_diets = {'vegan', 'vegetarian', 'non-vegetarian', 'mixed'}
+            if diet_preference not in valid_diets:
+                return jsonify({'error': 'Invalid diet preference'}), 400
+            user.diet_preference = diet_preference
+
+        if 'bio' in data:
+            bio = (data.get('bio') or '').strip()
+            if len(bio) > 500:
+                return jsonify({'error': 'Bio must be 500 characters or less'}), 400
+            user.bio = bio or None
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Profile updated successfully',
+            'user': user.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 
@@ -669,7 +756,26 @@ def generate_recommendations(simulation):
 
 def run_startup_migrations():
     """Apply lightweight schema updates for existing databases."""
-    return
+    inspector = inspect(db.engine)
+
+    if 'user' not in inspector.get_table_names():
+        return
+
+    existing_cols = {col['name'] for col in inspector.get_columns('user')}
+    required_cols = {
+        'full_name': 'ALTER TABLE "user" ADD COLUMN full_name VARCHAR(120)',
+        'location': 'ALTER TABLE "user" ADD COLUMN location VARCHAR(120)',
+        'household_size': 'ALTER TABLE "user" ADD COLUMN household_size INTEGER DEFAULT 1',
+        'transport_preference': 'ALTER TABLE "user" ADD COLUMN transport_preference VARCHAR(50) DEFAULT \'mixed\'',
+        'diet_preference': 'ALTER TABLE "user" ADD COLUMN diet_preference VARCHAR(50) DEFAULT \'mixed\'',
+        'bio': 'ALTER TABLE "user" ADD COLUMN bio VARCHAR(500)',
+    }
+
+    for col_name, ddl in required_cols.items():
+        if col_name not in existing_cols:
+            db.session.execute(db.text(ddl))
+
+    db.session.commit()
 
 
 # ==================== Feature 1: Compare Simulations ====================
