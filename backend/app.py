@@ -229,28 +229,28 @@ class EmissionCalculator:
     def calculate_transport_emissions(distance, car_type):
         """Calculate CO2 emissions from transportation"""
         emission_factor = EmissionCalculator.TRANSPORT_EMISSIONS.get(car_type, 0.192)
-        return distance * emission_factor / 1000  # Convert to kg
+        return distance * emission_factor
     
     @staticmethod
     def calculate_diet_emissions(meals_per_day, diet_type):
         """Calculate CO2 emissions from diet"""
         emission_per_meal = EmissionCalculator.DIET_EMISSIONS.get(diet_type, 3.5)
-        return meals_per_day * emission_per_meal / 1000  # Convert to kg
+        return meals_per_day * emission_per_meal
     
     @staticmethod
     def calculate_electricity_emissions(monthly_kwh):
         """Calculate CO2 emissions from electricity"""
-        return monthly_kwh * EmissionCalculator.ELECTRICITY_EMISSION_FACTOR / 1000
+        return monthly_kwh * EmissionCalculator.ELECTRICITY_EMISSION_FACTOR
     
     @staticmethod
     def calculate_gas_emissions(monthly_therms):
         """Calculate CO2 emissions from gas usage"""
-        return monthly_therms * EmissionCalculator.GAS_EMISSION_FACTOR / 1000
+        return monthly_therms * EmissionCalculator.GAS_EMISSION_FACTOR
     
     @staticmethod
     def calculate_water_emissions(monthly_liters):
         """Calculate CO2 emissions from water usage"""
-        return (monthly_liters / 1000) * EmissionCalculator.WATER_EMISSION_FACTOR / 1000
+        return (monthly_liters / 1000) * EmissionCalculator.WATER_EMISSION_FACTOR
     
     @staticmethod
     def calculate_annual_emissions(car_distance, car_type, bike_distance, walk_distance,

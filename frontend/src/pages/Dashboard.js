@@ -392,6 +392,18 @@ export const Dashboard = () => {
         <p>Welcome, {user?.username}! Explore your environmental impact.</p>
       </div>
 
+      <section className="primary-action-strip" aria-label="Primary action">
+        <div>
+          <h3>Start Or Update Your Sustainability Plan</h3>
+          <p>
+            Create a new simulation from template/manual input, or open one from the sidebar to continue improving it.
+          </p>
+        </div>
+        <button className="btn btn-primary" onClick={handleNewSimulationClick}>
+          {showForm || showTemplatePicker ? 'Close New Simulation' : 'Create New Simulation'}
+        </button>
+      </section>
+
       <div className="dashboard-summary">
         <div className="summary-card">
           <h4>Total Simulations</h4>
@@ -637,7 +649,7 @@ export const Dashboard = () => {
           ) : !isMainCreateFlow ? (
             <div className="empty-state">
               <h2>No simulation selected</h2>
-              <p>Create a simulation or start from a template.</p>
+              <p>Select one from the sidebar, or create a new simulation to continue.</p>
               <div className="template-grid">
                 <button className="btn btn-secondary" onClick={() => handleCreateFromTemplate('student')}>
                   Use Student Template

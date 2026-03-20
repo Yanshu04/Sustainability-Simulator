@@ -47,9 +47,15 @@ const Navigation = () => {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const location = useLocation();
   const [theme, setTheme] = useState('light');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const hasStoredToken = !!localStorage.getItem('access_token');
   const showAuthenticatedNav = isAuthenticated || (loading && hasStoredToken);
   const isAuthenticatedHome = location.pathname === '/home';
+  const buildVersion = process.env.REACT_APP_BUILD_VERSION || 'local';
+
+  useEffect(() => {
+    setShowMoreMenu(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -86,9 +92,28 @@ const Navigation = () => {
               </NavLink>
             )}
             {!isAuthenticatedHome && (
-              <NavLink to="/showcase" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-                Showcase
-              </NavLink>
+              <div className="nav-more">
+                <button
+                  type="button"
+                  className="btn btn-small nav-more-trigger"
+                  aria-haspopup="menu"
+                  aria-expanded={showMoreMenu}
+                  onClick={() => setShowMoreMenu((prev) => !prev)}
+                >
+                  More
+                </button>
+                {showMoreMenu && (
+                  <div className="nav-more-menu" role="menu" aria-label="More navigation">
+                    <NavLink
+                      to="/showcase"
+                      className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                      role="menuitem"
+                    >
+                      Showcase
+                    </NavLink>
+                  </div>
+                )}
+              </div>
             )}
             <button className="btn btn-small" onClick={logout}>
               Logout
@@ -118,6 +143,9 @@ const Navigation = () => {
             {theme === 'light' ? 'Dark mode' : 'Light mode'}
           </span>
         </button>
+        <span className="build-badge" title="Live build version">
+          Build {buildVersion}
+        </span>
       </div>
     </nav>
   );
