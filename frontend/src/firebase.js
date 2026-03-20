@@ -1,6 +1,3 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -12,12 +9,26 @@ const firebaseConfig = {
 
 const hasFirebaseConfig = Object.values(firebaseConfig).every(Boolean);
 
-let firebaseApp = null;
-let firebaseAuth = null;
+let firebaseAuthPromise = null;
 
-if (hasFirebaseConfig) {
-  firebaseApp = initializeApp(firebaseConfig);
-  firebaseAuth = getAuth(firebaseApp);
+export const getFirebaseAuth = async () => {
+  if (!hasFirebaseConfig) {
+    return null;
+  }
+
+  if (!firebaseAuthPromise) {
+    firebaseAuthPromise = (async () => {
+      const [{ initializeApp }, { getAuth }] = await Promise.all([
+        import('firebase/app'),
+        import('firebase/auth'),
+      ]);
+
+      const firebaseApp = initializeApp(firebaseConfig);
+      return getAuth(firebaseApp);
+    })();
+  }
+
+  return firebaseAuthPromise;
 }
 
-export { firebaseApp, firebaseAuth, hasFirebaseConfig };
+export { hasFirebaseConfig };

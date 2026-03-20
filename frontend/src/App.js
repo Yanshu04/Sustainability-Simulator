@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Home } from './pages/Home';
-import { ProjectHome } from './pages/ProjectHome';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { Dashboard } from './pages/Dashboard';
-import { FeatureShowcase } from './pages/FeatureShowcase';
 import './styles/App.css';
+
+const lazyNamed = (loader, exportName) =>
+  lazy(() => loader().then((module) => ({ default: module[exportName] })));
+
+const Home = lazyNamed(() => import('./pages/Home'), 'Home');
+const ProjectHome = lazyNamed(() => import('./pages/ProjectHome'), 'ProjectHome');
+const Login = lazyNamed(() => import('./pages/Login'), 'Login');
+const Register = lazyNamed(() => import('./pages/Register'), 'Register');
+const Dashboard = lazyNamed(() => import('./pages/Dashboard'), 'Dashboard');
+const FeatureShowcase = lazyNamed(() => import('./pages/FeatureShowcase'), 'FeatureShowcase');
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -157,49 +161,51 @@ function App() {
       <AuthProvider>
         <Navigation />
         <main className="app-main">
-          <Routes>
-            <Route path="/" element={<RootRoute />} />
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute>
-                  <ProjectHome />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PublicRoute>
-                  <Register />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/showcase"
-              element={
-                <ProtectedRoute>
-                  <FeatureShowcase />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
+          <Suspense fallback={<div className="loading-container">Loading...</div>}>
+            <Routes>
+              <Route path="/" element={<RootRoute />} />
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <ProjectHome />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <PublicRoute>
+                    <Register />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/showcase"
+                element={
+                  <ProtectedRoute>
+                    <FeatureShowcase />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </Suspense>
         </main>
       </AuthProvider>
     </Router>

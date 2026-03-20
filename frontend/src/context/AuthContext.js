@@ -1,12 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../api';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile,
-} from 'firebase/auth';
-import { firebaseAuth, hasFirebaseConfig } from '../firebase';
+import { getFirebaseAuth, hasFirebaseConfig } from '../firebase';
 
 // Create Auth Context
 const AuthContext = createContext();
@@ -53,9 +47,13 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      if (hasFirebaseConfig && firebaseAuth) {
-        const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-        await updateProfile(credential.user, { displayName: username });
+      if (hasFirebaseConfig) {
+        const firebaseAuth = await getFirebaseAuth();
+        if (firebaseAuth) {
+          const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
+          const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+          await updateProfile(credential.user, { displayName: username });
+        }
       }
 
       const response = await authAPI.register(username, email, password);
@@ -77,9 +75,11 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await authAPI.login(identifier, password);
 
-      if (hasFirebaseConfig && firebaseAuth) {
+      if (hasFirebaseConfig) {
+        const firebaseAuth = await getFirebaseAuth();
         const email = response.data?.user?.email;
-        if (email) {
+        if (firebaseAuth && email) {
+          const { signInWithEmailAndPassword } = await import('firebase/auth');
           await signInWithEmailAndPassword(firebaseAuth, email, password);
         }
       }
@@ -98,9 +98,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    if (hasFirebaseConfig && firebaseAuth) {
+    if (hasFirebaseConfig) {
       try {
-        await signOut(firebaseAuth);
+        const firebaseAuth = await getFirebaseAuth();
+        if (firebaseAuth) {
+          const { signOut } = await import('firebase/auth');
+          await signOut(firebaseAuth);
+        }
       } catch (_) {
         // Ignore firebase signout errors and still clear local session.
       }
